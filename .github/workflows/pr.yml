@@ -1,0 +1,56 @@
+# Everything that runs before a merge — the corpora-py pr.yml model adapted
+# to a formula-only repo:
+#
+#   <type>/<slug>  ->  main    guard + check
+#
+# There are no dev/next/release lanes here: a tap's "release" IS the formula
+# bump commit that bump.yml lands on main after each corpora-py tag, so main
+# is the one integration branch. Draft PRs only get the guard; the check
+# starts at ready_for_review and re-runs on every push. `guard` and `check`
+# are the required status checks.
+name: PR
+
+on:
+  pull_request:
+    types: [ opened, reopened, ready_for_review, synchronize ]
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Passed as environment, never interpolated into the shell: a PR title
+      # is attacker-controlled text. `event.pull_request.base.ref`, not
+      # `github.base_ref`, for correct stacked-PR bases (see corpora-py).
+      - name: Check base, branch name and title
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD: ${{ github.head_ref }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: make pr-guard
+
+  # One job on purpose: it is the required status check, and a matrix would
+  # report per-leg contexts the ruleset doesn't name. macOS runner because
+  # the formula's own install/test is the artifact under review — style and
+  # audit alone would green a formula that cannot actually build.
+  check:
+    name: check
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Style, audit, install, test
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: make ci

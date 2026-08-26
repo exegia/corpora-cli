@@ -23,7 +23,7 @@ class Corpora < Formula
   depends_on "python@3.13"
 
   def install
-    venv = virtualenv_create(libexec, "python3.13")
+    virtualenv_create(libexec, "python3.13")
     # Resolve third-party deps from PyPI; buildpath is the corpora-py
     # source tree itself.
     system libexec/"bin/python", "-m", "pip", "install", buildpath.to_s
