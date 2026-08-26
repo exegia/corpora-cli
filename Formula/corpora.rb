@@ -1,32 +1,40 @@
-# corpora — terminal conversion CLI from exegia/corpora-py (issue #188).
+# corpora — terminal conversion CLI, hosted in this repo (src/corpora_cli).
 #
-# The formula installs the corpora-py distribution into its own virtualenv
-# with pip resolving the (many) Python dependencies from PyPI, rather than
-# vendoring every dependency as a Homebrew resource stanza — this is a
-# personal tap, and the dependency closure (text-fabric, context-fabric,
-# lxml, fastapi, ...) would be unmaintainable as resources.
+# The formula installs the corpora-cli package into its own virtualenv with
+# pip resolving the (many) Python dependencies — corpora-py and everything
+# under it — from PyPI, rather than vendoring every dependency as a Homebrew
+# resource stanza: this is a personal tap, and the dependency closure
+# (text-fabric, context-fabric, lxml, fastapi, ...) would be unmaintainable
+# as resources.
 #
-# `url` points at the corpora-py source tarball; pip builds the same
-# self-contained wheel the PyPI release ships (the root pyproject bundles
-# all workspace packages). The bump workflow (.github/workflows/bump.yml)
-# rewrites url/sha256 on each corpora-py release tag (version is inferred
-# from the tag URL — an explicit stanza fails `brew audit` as redundant).
+# `url` points at this repo's own release-tag tarball; the tag's VERSION
+# file is the package version (hatch reads it), so the tarball builds the
+# exact released wheel (version is inferred from the tag URL — an explicit
+# stanza fails `brew audit` as redundant). The bump workflow
+# (.github/workflows/bump.yml) rewrites url/sha256 on each corpora-cli
+# release tag. `corpora-api` and `cf-mcp` still come from the corpora-py
+# dependency's entry points.
 class Corpora < Formula
   include Language::Python::Virtualenv
 
   desc "Convert documents into queryable .corpus text archives"
-  homepage "https://github.com/exegia/corpora-py"
-  url "https://github.com/exegia/corpora-py/archive/refs/tags/v2.2.0.tar.gz"
-  sha256 "e2153ef80aaa2933ee4e2d59065d88edf17044a53caf08f90469c3aa3a3dc366"
+  homepage "https://github.com/exegia/corpora-cli"
+  url "https://github.com/exegia/corpora-cli/archive/refs/tags/v0.0.2.tar.gz"
+  sha256 "b3ae74bf7fadcec6e5caeeaaafa8e6d55e691cc5fe4c03fe72d2ddd97b9322f6"
   license "MIT"
 
   depends_on "python@3.13"
 
   def install
     virtualenv_create(libexec, "python3.13")
-    # Resolve third-party deps from PyPI; buildpath is the corpora-py
-    # source tree itself.
+    # Resolve corpora-py and the rest of the closure from PyPI; buildpath is
+    # the corpora-cli source tree itself.
     system libexec/"bin/python", "-m", "pip", "install", buildpath.to_s
+    # corpora-py < 2.3.0 also declares a `corpora` entry point; whichever
+    # wheel pip happens to install last owns bin/corpora. Reinstall
+    # corpora-cli on top so its script deterministically wins.
+    system libexec/"bin/python", "-m", "pip", "install",
+           "--force-reinstall", "--no-deps", buildpath.to_s
     # Strip the REPL/serving extras the CLI never reaches (uvicorn --reload
     # watchers, ipython completion) — the same set corpora-py's Vercel
     # deploy uninstalls as runtime-unreachable. Besides the weight,
