@@ -9,23 +9,26 @@ Release branches are temporary and versioned.
 ```
 
 Same model as [corpora-py](https://github.com/exegia/corpora-py). This repo is
-a **Homebrew tap**, which changes what "release" means: the formula bump
-`bump.yml` lands on `main` after each corpora-py tag IS the deploy — the tap's
+a **Homebrew tap** as well as the home of the `corpora` CLI package
+(`src/corpora_cli`), which changes what "release" means: the formula bump
+`bump.yml` lands on `main` after a release tag here IS the deploy — the tap's
 committed state on `main` is what `brew install exegia/corpora-cli/corpora`
-serves. The lanes version the tap **infrastructure** (formula changes, CI,
-docs); the corpora version the formula ships lives in `Formula/corpora.rb` and
-never rides the lanes.
+serves. The lanes version the package and the tap infrastructure together
+(CLI code, formula changes, CI, docs); the tag the formula ships lives in
+`Formula/corpora.rb` and never rides the lanes.
 
-Two version series therefore coexist:
+Two uses of the same version series therefore coexist:
 
-- **`Formula/corpora.rb`** — the corpora-py version. Bumped by `bump.yml`
-  committing directly to `main` as the automation App (on the `main` ruleset's
-  bypass list). Fired by corpora-py's `publish.yml` via `repository_dispatch`,
-  or manually.
-- **`VERSION`** — the tap's own semver, playing the role corpora-py's root
-  `pyproject.toml` version plays: written on `release/v*` by the cut,
-  cross-checked against the branch name by the guard, read by `make
-  tag-release` after the merge.
+- **`Formula/corpora.rb`** — the corpora-cli release tag the formula
+  installs. Bumped by `bump.yml` committing directly to `main` as the
+  automation App (on the `main` ruleset's bypass list); fire it manually (or
+  via `repository_dispatch`) after a release here tags `vX.Y.Z`. corpora-py
+  releases no longer bump the formula — pip resolves corpora-py from PyPI at
+  install time.
+- **`VERSION`** — the package/tap semver, and the version the tag tarball
+  builds (hatch reads it): written on `release/v*` by the cut, cross-checked
+  against the branch name by the guard, read by `make tag-release` after the
+  merge.
 
 ## Feature branches
 
@@ -113,8 +116,10 @@ the meantime) and deletes leftover remote feature / `release/v*` heads.
 
 It does **not** cut the next release branch. That waits for the next promote.
 
-Nothing hangs off the tag here — the formula on `main` is already the
-published state. The tag versions the tap infra itself.
+The tag is what the formula installs: its tarball builds the corpora-cli
+package at that `VERSION`. Run `bump.yml` after tagging to point
+`Formula/corpora.rb` at the new tag — the formula on `main` is the published
+state `brew install` serves.
 
 ## Workflows
 
@@ -126,7 +131,7 @@ published state. The tag versions the tap infra itself.
 | `pr-merged.yml` | push to `release/v*`                 | upsert the draft release PR into `main`             |
 | `release.yml`   | PR merged into `main`                | tag, sync lanes, cleanup                            |
 | `matrix.yml`    | push to `next` / `release/v*`, weekly | current + previous macOS coverage                  |
-| `bump.yml`      | `repository_dispatch` / manual       | bump `Formula/corpora.rb` to a corpora-py release   |
+| `bump.yml`      | `repository_dispatch` / manual       | bump `Formula/corpora.rb` to a corpora-cli release tag |
 | `automerge.yml` | Dependabot PR                        | enables auto-merge                                  |
 
 Every step in the first five is a `make` target, so anything CI does can be
