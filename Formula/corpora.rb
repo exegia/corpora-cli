@@ -32,6 +32,19 @@ class Corpora < Formula
     bin.install_symlink libexec/"bin/cf-mcp"
   end
 
+  # Homebrew's post-install processing leaves many of the pip-installed
+  # native extensions (lxml, pdf-inspector, hf_xet, ...) with invalid ad-hoc
+  # code signatures; on Apple Silicon the kernel then SIGKILLs the process
+  # with "Code Signature Invalid" the moment such a page is executed. Re-sign
+  # every Mach-O in the virtualenv after everything else has touched it —
+  # post_install runs last (and on `brew postinstall corpora` for an
+  # already-broken keg).
+  def post_install
+    Dir[libexec/"lib/**/*.so", libexec/"lib/**/*.dylib"].each do |f|
+      system "codesign", "--force", "--sign", "-", f
+    end
+  end
+
   test do
     (testpath/"sample.txt").write <<~TEXT
       Sample Title
