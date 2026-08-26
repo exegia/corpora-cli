@@ -59,7 +59,7 @@ waves those through whichever branch they target.
 `next` is staging. A scheduled workflow (22:00 UTC daily) and a manual
 **Promote to next** action open a PR from `dev` into `next` when `dev` is
 ahead. That PR auto-merges once `guard` and `check` pass. Every push to
-`next` also runs the platform matrix (macOS versions + Linuxbrew).
+`next` also runs the platform matrix (current + previous macOS).
 
 ## Versioning
 
@@ -125,7 +125,7 @@ published state. The tag versions the tap infra itself.
 | `next.yml`      | push to `next`                       | cut/refresh `release/v*`                            |
 | `pr-merged.yml` | push to `release/v*`                 | upsert the draft release PR into `main`             |
 | `release.yml`   | PR merged into `main`                | tag, sync lanes, cleanup                            |
-| `matrix.yml`    | push to `next` / `release/v*`, weekly | macOS versions + Linuxbrew coverage                |
+| `matrix.yml`    | push to `next` / `release/v*`, weekly | current + previous macOS coverage                  |
 | `bump.yml`      | `repository_dispatch` / manual       | bump `Formula/corpora.rb` to a corpora-py release   |
 | `automerge.yml` | Dependabot PR                        | enables auto-merge                                  |
 
