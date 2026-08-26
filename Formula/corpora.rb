@@ -9,14 +9,14 @@
 # `url` points at the corpora-py source tarball; pip builds the same
 # self-contained wheel the PyPI release ships (the root pyproject bundles
 # all workspace packages). The bump workflow (.github/workflows/bump.yml)
-# rewrites url/sha256/version on each corpora-py release tag.
+# rewrites url/sha256 on each corpora-py release tag (version is inferred
+# from the tag URL — an explicit stanza fails `brew audit` as redundant).
 class Corpora < Formula
   include Language::Python::Virtualenv
 
   desc "Convert documents into queryable .corpus text archives"
   homepage "https://github.com/exegia/corpora-py"
   url "https://github.com/exegia/corpora-py/archive/refs/tags/v2.2.0.tar.gz"
-  version "2.2.0"
   sha256 "e2153ef80aaa2933ee4e2d59065d88edf17044a53caf08f90469c3aa3a3dc366"
   license "MIT"
 

@@ -49,7 +49,6 @@ jobs:
           SHA256=$(sha256sum release.tar.gz | cut -d' ' -f1)
           sed -i \
             -e "s|^  url \".*\"$|  url \"${URL}\"|" \
-            -e "s|^  version \".*\"$|  version \"${VERSION}\"|" \
             -e "s|^  sha256 \".*\"$|  sha256 \"${SHA256}\"|" \
             Formula/corpora.rb
           rm release.tar.gz
