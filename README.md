@@ -119,15 +119,17 @@ The formula tracks corpora-py's release tags. On each tagged PyPI publish,
 corpora-py's `publish.yml` fires this repo's
 [`bump.yml`](.github/workflows/bump.yml) (`bump-formula` dispatch), which
 rewrites `Formula/corpora.rb`'s url/version/sha256 from the tag tarball and
-commits to `main` — the bump commit *is* the release; there are no separate
-lanes here. Manual bumps: *Actions → Bump formula → Run workflow* with the
-version.
+commits to `main` — the bump commit *is* the release of the formula. Manual
+bumps: *Actions → Bump formula → Run workflow* with the version.
 
 ## Contributing / CI
 
-Same conventions as corpora-py, adapted to a formula-only repo: branches are
-`<type>/<slug>` and PR titles `<type>: summary`, targeting `main` directly.
-Every CI step is a make target:
+Same branch model as corpora-py — see
+[`.github/WORKFLOW.md`](.github/WORKFLOW.md): branches are `<type>/<slug>`
+with PR titles `<type>: summary`, targeting `dev`; a daily promote moves work
+through `next` and a versioned `release/vX.Y.Z` into `main`. (The lanes
+version the tap infra; the corpora version the formula ships stays on
+`main`'s bump commits.) Every CI step is a make target:
 
 ```bash
 make ci        # brew style + audit + install + test (what the PR check runs)
