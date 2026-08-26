@@ -15,9 +15,9 @@ class Corpora < Formula
 
   desc "Convert documents into queryable .corpus text archives"
   homepage "https://github.com/exegia/corpora-py"
-  url "https://github.com/exegia/corpora-py/archive/ceca6cb9a0ed061a692851405b797a92e548e3e4.tar.gz"
-  version "2.0.0-dev"
-  sha256 "64b137c7c2c69fc6001b3951ab688d4db7579d5c509fc018430db72d8647d786"
+  url "https://github.com/exegia/corpora-py/archive/refs/tags/v2.1.0.tar.gz"
+  version "2.1.0"
+  sha256 "43449d4b3c7761d4c86421ec2bc8be82cf927cf1a8d1f0daa5831a4c48cd562b"
   license "MIT"
 
   depends_on "python@3.13"
