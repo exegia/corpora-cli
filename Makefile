@@ -2,7 +2,7 @@
 # stays reproducible locally (`make ci` on a machine with Homebrew does what
 # the check job does). The branch model lives in .github/WORKFLOW.md.
 
-TAP      := exegia/corpora-cli
+TAP      := exegia/corpora
 FORMULA  := $(TAP)/corpora
 
 .DEFAULT_GOAL := help
@@ -14,9 +14,9 @@ help: ## List targets
 
 # Symlinked, not `brew tap <url>`: tapping clones the repo's committed state,
 # which would silently audit/install something other than this checkout.
-TAP_DIR := $(shell brew --repository)/Library/Taps/exegia/homebrew-corpora-cli
+TAP_DIR := $(shell brew --repository)/Library/Taps/exegia/homebrew-corpora
 
-tap: ## Register this checkout as the exegia/corpora-cli tap (symlink)
+tap: ## Register this checkout as the exegia/corpora tap (symlink)
 	@mkdir -p "$(dir $(TAP_DIR))"; \
 	[ -e "$(TAP_DIR)" ] || ln -s "$(CURDIR)" "$(TAP_DIR)"
 
