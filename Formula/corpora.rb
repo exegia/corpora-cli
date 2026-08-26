@@ -47,7 +47,11 @@ class Corpora < Formula
   # every Mach-O in the virtualenv after everything else has touched it —
   # post_install runs last (and on `brew postinstall corpora` for an
   # already-broken keg).
+  # codesign is macOS-only; Linuxbrew has no codesign and no signature
+  # enforcement, so skip re-signing there.
   def post_install
+    return unless OS.mac?
+
     Dir[libexec/"lib/**/*.so", libexec/"lib/**/*.dylib"].each do |f|
       system "codesign", "--force", "--sign", "-", f
     end
