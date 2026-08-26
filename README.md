@@ -122,6 +122,28 @@ rewrites `Formula/corpora.rb`'s url/version/sha256 from the tag tarball and
 commits to `main` — the bump commit *is* the release of the formula. Manual
 bumps: *Actions → Bump formula → Run workflow* with the version.
 
+## The CLI package
+
+Since the CLI moved out of corpora-py, this repo also hosts the `corpora`
+command itself: a uv-managed Python package under
+[`src/corpora_cli`](src/corpora_cli) that depends on the
+[corpora-py](https://pypi.org/project/corpora-py/) distribution from PyPI for
+the pipeline (parsers, Text-Fabric conversion, storage backends) and renders
+it as a Rich-styled, scriptable CLI — `convert`, `validate`, and the
+`library` subcommands (list/publish/download/delete/show). No TUI: output is
+line-oriented, colour drops away when piped, and `NO_COLOR` is honoured.
+
+```bash
+uv sync            # resolve corpora-py + rich into .venv
+uv run corpora --help
+make pytest        # ruff + pytest over the package
+```
+
+The package version is dynamic from the repo's [`VERSION`](VERSION) file, so
+the release lanes below version it. (The Homebrew formula still installs
+corpora-py's published entry points; it flips to installing this package once
+a release tag ships it.)
+
 ## Contributing / CI
 
 Same branch model as corpora-py — see
@@ -132,7 +154,7 @@ version the tap infra; the corpora version the formula ships stays on
 `main`'s bump commits.) Every CI step is a make target:
 
 ```bash
-make ci        # brew style + audit + install + test (what the PR check runs)
+make ci        # brew style + audit + install + test + pytest (what the PR check runs)
 make pr-guard  # BASE/HEAD/TITLE validation (what the guard job runs)
 ```
 
