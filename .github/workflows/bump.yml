@@ -1,0 +1,69 @@
+# Bumps Formula/corpora.rb to a new corpora-py release.
+#
+# Fired two ways:
+#   - repository_dispatch `bump-formula` with client_payload.version — sent by
+#     corpora-py's publish.yml after a successful PyPI publish (the automation
+#     GitHub App must be installed on this repo for that token to reach it);
+#   - workflow_dispatch with a `version` input, for manual bumps.
+#
+# The version is the bare X.Y.Z (no leading `v`). The job downloads the
+# corresponding corpora-py tag tarball, computes its sha256, rewrites the
+# formula's url/version/sha256 lines, and commits directly to main.
+
+name: Bump formula
+
+on:
+  repository_dispatch:
+    types: [bump-formula]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "corpora-py version to bump to (X.Y.Z, no leading v)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="${{ github.event_name == 'workflow_dispatch' && inputs.version || github.event.client_payload.version }}"
+          VERSION="${VERSION#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::'$VERSION' is not a valid X.Y.Z version" && exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Rewrite formula
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          URL="https://github.com/exegia/corpora-py/archive/refs/tags/v${VERSION}.tar.gz"
+          curl -fsSL "$URL" -o release.tar.gz
+          SHA256=$(sha256sum release.tar.gz | cut -d' ' -f1)
+          sed -i \
+            -e "s|^  url \".*\"$|  url \"${URL}\"|" \
+            -e "s|^  version \".*\"$|  version \"${VERSION}\"|" \
+            -e "s|^  sha256 \".*\"$|  sha256 \"${SHA256}\"|" \
+            Formula/corpora.rb
+          rm release.tar.gz
+          git diff --stat -- Formula/corpora.rb
+
+      - name: Commit and push
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if git diff --quiet -- Formula/corpora.rb; then
+            echo "Formula already at ${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/corpora.rb
+          git commit -m "corpora ${VERSION}"
+          git push
