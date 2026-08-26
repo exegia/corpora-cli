@@ -12,7 +12,7 @@ Same model as [corpora-py](https://github.com/exegia/corpora-py). This repo is
 a **Homebrew tap** as well as the home of the `corpora` CLI package
 (`src/corpora_cli`), which changes what "release" means: the formula bump
 `bump.yml` lands on `main` after a release tag here IS the deploy — the tap's
-committed state on `main` is what `brew install exegia/corpora-cli/corpora`
+committed state on `main` is what `brew install exegia/corpora/corpora`
 serves. The lanes version the package and the tap infrastructure together
 (CLI code, formula changes, CI, docs); the tag the formula ships lives in
 `Formula/corpora.rb` and never rides the lanes.
@@ -226,7 +226,7 @@ not fire on a cron until this file has shipped to `main`.
 | `CLAUDE_CODE_OAUTH_TOKEN`                          | **organisation** | the AI review (optional)    |
 
 All three are **organisation** secrets on `exegia`, inherited by this repo —
-`gh api repos/exegia/corpora-cli/actions/secrets` returns an empty list and is
+`gh api repos/exegia/homebrew-corpora/actions/secrets` returns an empty list and is
 not evidence they are missing; use `gh api orgs/exegia/actions/secrets`. The
 backing App is `corpora-ui-automation` (Integration `4425676`), installed
 org-wide with `contents: write` + `pull_requests: write`.

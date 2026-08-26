@@ -1,8 +1,8 @@
-# exegia/corpora-cli
+# exegia/homebrew-corpora
 
-Homebrew tap for the [corpora-py](https://github.com/exegia/corpora-py)
-toolchain — convert EPUBs, PDFs, HTML, TEI/XML, and plain text into queryable
-`.corpus` archives from your terminal.
+Home of the `corpora` CLI and its Homebrew tap — convert EPUBs, PDFs, HTML,
+TEI/XML, and plain text into queryable `.corpus` archives from your terminal,
+powered by the [corpora-py](https://github.com/exegia/corpora-py) toolchain.
 
 <p align="center">
   <img src="docs/corpora-ui.png" alt="corpora interactive terminal UI" width="720">
@@ -10,19 +10,19 @@ toolchain — convert EPUBs, PDFs, HTML, TEI/XML, and plain text into queryable
 
 ## Install
 
-The repo doesn't carry Homebrew's `homebrew-` name prefix, so tap it by URL
-once, then install:
+The repo carries Homebrew's `homebrew-` name prefix, so a single command taps
+and installs:
 
 ```bash
-brew tap exegia/corpora-cli https://github.com/exegia/corpora-cli
-brew install corpora
+brew install exegia/corpora/corpora
 ```
 
-This installs corpora-py into its own virtualenv and links three commands:
+This installs the [corpora-cli](#the-cli-package) package (and corpora-py
+from PyPI) into its own virtualenv and links three commands:
 
 | Command | What it does |
 | --- | --- |
-| `corpora` | Terminal conversion CLI + interactive TUI |
+| `corpora` | Terminal conversion CLI (`convert`, `validate`, `library`) |
 | `corpora-api` | Combined FastAPI app (MCP server at `/mcp` + conversion API at `/convert`) |
 | `cf-mcp` | Standalone MCP server (stdio) for AI clients |
 
@@ -80,16 +80,18 @@ Prints a verdict plus archive stats:
 
 <img src="docs/corpora-validate.png" alt="corpora validate output" width="720">
 
-### `corpora ui` — interactive terminal UI
+### `corpora library` — manage published corpora
 
 ```bash
-corpora ui   # or just: corpora
+corpora library list
+corpora library show book.corpus
+corpora library publish book.corpus
 ```
 
-Running `corpora` with no arguments (or `corpora ui`) opens a full-screen
-terminal UI with **Convert**, **Validate**, and **Library** tabs — the same
-pipeline as the CLI, driven by forms instead of flags (see the screenshot at
-the top). Press `q` to quit, `^p` for the command palette.
+The `library` subcommands (list/publish/download/delete/show) manage the
+corpus library through the same pipeline as the conversion commands. Output
+is Rich-styled but line-oriented: colour drops away when piped, and
+`NO_COLOR` is honoured.
 
 ### `corpora-api` — HTTP API + MCP over HTTP
 
@@ -115,12 +117,13 @@ e.g. for Claude Desktop / Claude Code:
 
 ## Releases
 
-The formula tracks corpora-py's release tags. On each tagged PyPI publish,
-corpora-py's `publish.yml` fires this repo's
-[`bump.yml`](.github/workflows/bump.yml) (`bump-formula` dispatch), which
-rewrites `Formula/corpora.rb`'s url/version/sha256 from the tag tarball and
-commits to `main` — the bump commit *is* the release of the formula. Manual
-bumps: *Actions → Bump formula → Run workflow* with the version.
+The formula installs this repo's own release tags. After a release tags
+`vX.Y.Z`, run [`bump.yml`](.github/workflows/bump.yml) (*Actions → Bump
+formula → Run workflow* with the version, or a `bump-formula`
+`repository_dispatch`), which rewrites `Formula/corpora.rb`'s url/sha256
+from the tag tarball and commits to `main` — the bump commit *is* the
+release of the formula. corpora-py releases don't touch the formula: pip
+resolves the newest compatible corpora-py from PyPI at install time.
 
 ## The CLI package
 
@@ -140,9 +143,8 @@ make pytest        # ruff + pytest over the package
 ```
 
 The package version is dynamic from the repo's [`VERSION`](VERSION) file, so
-the release lanes below version it. (The Homebrew formula still installs
-corpora-py's published entry points; it flips to installing this package once
-a release tag ships it.)
+the release lanes below version it — the Homebrew formula installs this
+package from the matching release-tag tarball.
 
 ## Contributing / CI
 
