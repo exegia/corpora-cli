@@ -4,13 +4,12 @@
 # required status check on main, and a matrixed job reports contexts like
 # "test (macos-14)" rather than the plain "check" the ruleset names, which
 # would leave every PR unmergeable. This workflow keeps the breadth — the
-# current and previous macOS images, plus Linuxbrew (Homebrew ships
-# preinstalled on GitHub's ubuntu runners, and the formula bottles for Linux
-# users too) — where it does not collide with a required context:
+# current and previous macOS images (macOS only: the tap targets Homebrew on
+# macOS, and Windows has no Homebrew at all) — where it does not collide with
+# a required context:
 #
-#   * every push to `next` or a release branch, so an older-macOS- or
-#     Linux-only break surfaces on staging / the in-flight RC rather than on
-#     the release PR;
+#   * every push to `next` or a release branch, so an older-macOS-only break
+#     surfaces on staging / the in-flight RC rather than on the release PR;
 #   * weekly, to catch upstream drift (a new corpora-py release or a Homebrew
 #     core change) on an untouched tree;
 #   * on demand.
@@ -40,15 +39,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ macos-latest, macos-14, ubuntu-latest ]
+        os: [ macos-latest, macos-14 ]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # Linuxbrew is preinstalled but not on PATH on the ubuntu images.
-      - name: Put Homebrew on PATH (Linux)
-        if: ${{ runner.os == 'Linux' }}
-        run: echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
 
       - name: Style, audit, install, test
         env:
