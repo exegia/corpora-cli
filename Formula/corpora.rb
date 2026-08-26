@@ -27,6 +27,14 @@ class Corpora < Formula
     # Resolve third-party deps from PyPI; buildpath is the corpora-py
     # source tree itself.
     system libexec/"bin/python", "-m", "pip", "install", buildpath.to_s
+    # Strip the REPL/serving extras the CLI never reaches (uvicorn --reload
+    # watchers, ipython completion) — the same set corpora-py's Vercel
+    # deploy uninstalls as runtime-unreachable. Besides the weight,
+    # Homebrew's post-install linkage fixer hard-fails on watchfiles'
+    # Rust dylib ("Failed changing dylib ID"), so these must be gone
+    # before Homebrew post-processes the keg.
+    system libexec/"bin/python", "-m", "pip", "uninstall", "-y",
+           "uvloop", "watchfiles", "jedi", "parso"
     bin.install_symlink libexec/"bin/corpora"
     bin.install_symlink libexec/"bin/corpora-api"
     bin.install_symlink libexec/"bin/cf-mcp"
