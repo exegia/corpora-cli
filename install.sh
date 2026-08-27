@@ -62,6 +62,8 @@ Usage: curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main
 
 Installs corpora, corpora-api and cf-mcp into $HOME/.local/bin from a
 release-tag tarball (latest by default), into its own virtualenv.
+Re-running it over an existing install recreates the virtualenv, so the
+same command also upgrades (or downgrades, with --version) in place.
 
 To pass options through curl | bash, use 'bash -s --', e.g.
   curl -fsSL <url> | bash -s -- --version v0.1.1
@@ -215,11 +217,13 @@ log "Installing corpora $tag"
 dim "  venv:  $VENV"
 dim "  bins:  $LOCAL_BIN"
 
-# (Re)create the virtualenv.
+# (Re)create the virtualenv — clear any existing one so a plain re-run
+# upgrades in place instead of failing on the leftover venv.
 if [ "$USE_UV" = 1 ]
 then
-  uv venv "$VENV" --python "$py" >/dev/null
+  uv venv "$VENV" --python "$py" --clear >/dev/null
 else
+  [ ! -d "$VENV" ] || rm -rf "$VENV"
   "$py" -m venv "$VENV"
   # venv normally ships pip; ensure it's there for the fallback path.
   "$VENV/bin/python" -m pip --version >/dev/null 2>&1 ||
