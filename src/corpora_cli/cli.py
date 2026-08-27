@@ -18,8 +18,18 @@ Usage::
     corpora convert mobydick.epub --name "Moby Dick" -o mobydick.corpus
     corpora convert dataset.zip --format tf_zip
     corpora validate mobydick.corpus
+    corpora schema mobydick.epub -o mobydick.schema.json
+    corpora reconcile mobydick.corpus --schema mobydick.schema.json --yes
     corpora library list
     corpora library show mobydick.corpus --ref "Moby Dick 1"
+
+``schema`` and ``reconcile`` answer a different question than ``validate``:
+not "is the archive internally sound?" but "does it faithfully represent the
+document it was converted from?" (issue #41). ``schema`` normalises the
+source document into a reference schema; ``reconcile`` aligns that schema
+with the archive's Text-Fabric sections — bridging the two sides' level
+names with an explicit or inferred ``--map`` — and reports what the
+conversion lost.
 
 `library publish`, `download` and `delete` write to shared storage on a
 person's behalf; they are hidden and locked until the CLI can sign in (see
@@ -42,9 +52,11 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import json
 import re
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
 from typing import Any
 
@@ -196,6 +208,132 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     summary = validate_archive(archive)
     _print_validation(summary)
     return 0 if summary.get("valid") else 1
+
+
+# ── schema / reconcile ───────────────────────────────────────────────────────
+# Source-fidelity checks (issue #41): `schema` extracts a reference schema
+# from the original document, `reconcile` aligns it with a converted
+# archive's Text-Fabric sections. Both are stdlib-only
+# (`corpora_cli.reconcile`) so they work on archives the heavy loaders
+# cannot open.
+
+
+def _cmd_schema(args: argparse.Namespace) -> int:
+    from xml.etree import ElementTree
+
+    from corpora_cli.reconcile import docschema
+
+    document = Path(args.document).expanduser()
+    if not document.is_file():
+        raise ui.fail(f"document not found: {document}")
+    output = (
+        Path(args.output).expanduser()
+        if args.output
+        else (Path.cwd() / f"{document.stem}.schema.json")
+    )
+    if output.exists() and not args.force:
+        raise ui.fail(f"{output} already exists — pass --force to overwrite.")
+
+    levels = [name.strip() for name in (args.levels or "").split(",") if name.strip()]
+    try:
+        schema = docschema.extract(str(document), args.format, levels)
+    except docschema.SchemaError as exc:
+        raise ui.fail(str(exc)) from exc
+    except (ElementTree.ParseError, zipfile.BadZipFile, OSError) as exc:
+        ui.error(f"cannot read {document.name}: {exc}")
+        return 1
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(schema, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    title = schema.get("title") or "(untitled)"
+    ui.success(f"Schema: {schema['source']} [{schema['format']}] — {title}")
+    ui.note(f"  levels: {' > '.join(schema['levels'])}")
+    for level, count in schema["unit_counts"].items():
+        ui.note(f"  {level}: {count} unit(s)")
+    ui.note(f"  total words: {schema['total_words']:,}")
+    print(output)
+    return 0
+
+
+def _locate_tf_dir(corpus: Path, extract_root: Path) -> Path:
+    """Find the directory holding ``otype.tf`` — inside `corpus` if it is a
+    directory, else inside the archive extracted to `extract_root`."""
+    if corpus.is_dir():
+        root = corpus
+    else:
+        try:
+            with zipfile.ZipFile(corpus) as archive:
+                archive.extractall(extract_root)
+        except zipfile.BadZipFile as exc:
+            raise ui.fail(f"{corpus} is neither a .tf directory nor a readable archive.") from exc
+        root = extract_root
+    if (root / "otype.tf").is_file():
+        return root
+    hits = sorted(root.rglob("otype.tf"), key=lambda p: len(p.parts))
+    if not hits:
+        raise ui.fail(f"no otype.tf found under {corpus} — not a Text-Fabric corpus.")
+    return hits[0].parent
+
+
+def _cmd_reconcile(args: argparse.Namespace) -> int:
+    from corpora_cli import reconcile
+
+    corpus = Path(args.corpus).expanduser()
+    if not corpus.exists():
+        raise ui.fail(f"corpus not found: {corpus}")
+    schema_path = Path(args.schema).expanduser()
+    if not schema_path.is_file():
+        raise ui.fail(
+            f"schema file not found: {schema_path} — create it with `corpora schema <document>`."
+        )
+
+    def confirm(rows: list[dict], unmapped_ref: list[str], unmapped_cor: list[str]) -> bool:
+        ui.info("Inferred level mapping:")
+        table = ui.table("reference", "corpus", "evidence")
+        for row in rows:
+            table.add_row(row["ref"], row["corpus"], reconcile.format_evidence(row))
+        ui.block(table, ui.err)
+        for level in unmapped_ref:
+            ui.warn(f"unmapped reference level: {level}")
+        for stype in unmapped_cor:
+            ui.warn(f"unmapped corpus section type: {stype}")
+        if args.yes:
+            ui.note("Proceeding (--yes).")
+            return True
+        if not sys.stdin.isatty():
+            return False
+        from rich.prompt import Confirm
+
+        return Confirm.ask("Proceed with this mapping?", console=ui.err)
+
+    with tempfile.TemporaryDirectory(prefix="corpora-reconcile-") as tmp:
+        tf_dir = _locate_tf_dir(corpus, Path(tmp))
+        options = reconcile.Options(
+            corpus_dir=str(tf_dir),
+            schema_path=str(schema_path),
+            map_pairs=args.map or [],
+            map_file=args.map_file or "",
+            level=args.level or "",
+            ref_level=args.ref_level or "",
+            label_feature=args.label_feature or "",
+            tolerance=args.tolerance,
+            report_path=args.report or "",
+            json_path=args.json_out or "",
+            patch_dir=args.patch_dir or "",
+        )
+        try:
+            result = reconcile.run(options, confirm)
+        except reconcile.MappingError as exc:
+            raise ui.fail(str(exc)) from exc
+
+    if not args.quiet:
+        print(result.report, end="")
+    errors = sum(1 for f in result.findings if f["severity"] == "error")
+    if errors:
+        ui.log(f"{ui.ERR} Reconciliation: FAIL ({errors} error finding(s))", style="error")
+    else:
+        ui.success("Reconciliation: PASS")
+    return result.exit_code
 
 
 # ── library ──────────────────────────────────────────────────────────────────
@@ -385,6 +523,87 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("corpus", help="Path to a .corpus archive.")
     validate.set_defaults(func=_cmd_validate)
+
+    schema = subparsers.add_parser(
+        "schema",
+        help="Extract a reference schema (levels, units, word shingles) from "
+        "a source document, for `corpora reconcile`.",
+    )
+    schema.add_argument("document", help="Source document (epub, tei/xml, markdown, txt).")
+    schema.add_argument(
+        "--format",
+        "-f",
+        default="auto",
+        choices=("auto", "epub", "xml", "markdown"),
+        help="Reference format (inferred from the extension when omitted).",
+    )
+    schema.add_argument(
+        "--levels", help="Comma-separated level names, outermost first (overrides detection)."
+    )
+    schema.add_argument("--output", "-o", help="Schema JSON path (default: ./<stem>.schema.json).")
+    schema.add_argument(
+        "--force", action="store_true", help="Overwrite the output file if it already exists."
+    )
+    schema.set_defaults(func=_cmd_schema)
+
+    reconcile = subparsers.add_parser(
+        "reconcile",
+        help="Compare a converted corpus against its source document's "
+        "reference schema and report what the conversion lost.",
+    )
+    reconcile.add_argument(
+        "corpus", help="A .corpus archive, a Text-Fabric .zip, or a directory of .tf files."
+    )
+    reconcile.add_argument(
+        "--schema", required=True, help="Reference schema JSON from `corpora schema`."
+    )
+    reconcile.add_argument(
+        "--map",
+        action="append",
+        metavar="REF=CORPUS",
+        help="Alias one reference level to one corpus section type "
+        "(e.g. --map h1=book --map h2=chapter); repeatable. All mapped "
+        "levels are compared pairwise. Without it the mapping is inferred "
+        "and must be confirmed.",
+    )
+    reconcile.add_argument(
+        "--map-file",
+        help="Persisted level mapping (JSON): read when it exists (unless "
+        "--map is given), and the confirmed mapping is written back to it.",
+    )
+    reconcile.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Accept the inferred level mapping without prompting (for scripts and CI).",
+    )
+    reconcile.add_argument(
+        "--level", help="Corpus section type to compare (single-level escape hatch)."
+    )
+    reconcile.add_argument(
+        "--ref-level", help="Reference level to compare (single-level escape hatch)."
+    )
+    reconcile.add_argument(
+        "--label-feature",
+        help="Node feature holding the section label (default: the matching sectionFeature).",
+    )
+    reconcile.add_argument(
+        "--tolerance",
+        type=int,
+        default=3,
+        help="Slot offset tolerated before a boundary counts as drifted (default: 3).",
+    )
+    reconcile.add_argument("--report", help="Write the Markdown report to this path.")
+    reconcile.add_argument(
+        "--json", dest="json_out", help="Write the machine-readable result to this path."
+    )
+    reconcile.add_argument(
+        "--patch-dir", help="Write append-only .tf patches for missing units to this directory."
+    )
+    reconcile.add_argument(
+        "--quiet", "-q", action="store_true", help="Suppress the report on stdout."
+    )
+    reconcile.set_defaults(func=_cmd_reconcile)
 
     library = subparsers.add_parser(
         "library", help="Manage stored archives on the configured backend."
