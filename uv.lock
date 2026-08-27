@@ -385,6 +385,7 @@ source = { editable = "." }
 dependencies = [
     { name = "corpora-py" },
     { name = "rich" },
+    { name = "typer" },
 ]
 
 [package.dev-dependencies]
@@ -398,6 +399,7 @@ dev = [
 requires-dist = [
     { name = "corpora-py", specifier = ">=2.2.0" },
     { name = "rich", specifier = ">=13.7" },
+    { name = "typer", specifier = ">=0.26.8" },
 ]
 
 [package.metadata.requires-dev]
