@@ -63,6 +63,32 @@ brew upgrade exegia/corpora/cli
 brew uninstall exegia/corpora/cli
 ```
 
+### Without Homebrew (`curl | bash`)
+
+On machines without Homebrew (Linux, or macOS where you'd rather not use a
+formula), install with the one-liner. It builds `corpora-cli` from a
+release-tag tarball into its own virtualenv under `~/.corpora`, resolves the
+`corpora-py` dependency closure from PyPI, and links the same three commands
+into `~/.local/bin`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash
+```
+
+Homebrew stays the recommended path on macOS — the formula handles keg
+hygiene and the native-extension re-signing for you. The script mirrors that
+logic (including the macOS codesign fix) without Homebrew.
+
+Pin a release, or remove it later:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash -s -- --version vX.Y.Z
+curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash -s -- --uninstall
+```
+
+`python3.13` is required; `uv` is used when present (faster resolver), else
+the `venv` module + `pip`. Relocate with `CORPORA_HOME` / `CORPORA_BIN`.
+
 ## Usage
 
 ```text

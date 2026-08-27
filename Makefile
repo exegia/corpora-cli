@@ -7,7 +7,7 @@ FORMULA  := $(TAP)/cli
 
 .DEFAULT_GOAL := help
 
-.PHONY: help tap style audit install test pytest ci docs
+.PHONY: help tap style audit install test pytest install-script ci docs
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -39,7 +39,11 @@ pytest: ## Lint + test the corpora_cli Python package (uv-managed venv)
 	uv run ruff format --check src tests docs
 	uv run pytest -q
 
-ci: style audit install test pytest ## Everything the PR check job runs
+install-script: ## Lint the curl|bash installer (shellcheck)
+	@command -v shellcheck >/dev/null || brew install shellcheck
+	shellcheck install.sh
+
+ci: style audit install test pytest install-script ## Everything the PR check job runs
 
 # ── Docs ──────────────────────────────────────────────────────────────────────
 # The README's terminal shots are generated, never hand-captured, so they
