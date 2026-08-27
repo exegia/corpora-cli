@@ -39,11 +39,10 @@ pytest: ## Lint + test the corpora_cli Python package (uv-managed venv)
 	uv run ruff format --check src tests docs
 	uv run pytest -q
 
-install-script: ## Lint the curl|bash installer (shellcheck --enable=all, like brew style)
-	@command -v shellcheck >/dev/null || brew install shellcheck
-	shellcheck --enable=all install.sh
+install-script: ## Lint install.sh exactly like CI's brew style (shellcheck --enable=all + shfmt)
+	brew style install.sh
 
-ci: style audit install test pytest install-script ## Everything the PR check job runs
+ci: style audit install test pytest ## Everything the PR check job runs
 
 # ── Docs ──────────────────────────────────────────────────────────────────────
 # The README's terminal shots are generated, never hand-captured, so they
