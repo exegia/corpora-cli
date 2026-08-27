@@ -10,12 +10,20 @@ monkeypatched at the `make_corpus_storage` seam (the real backends are
 covered by the storage service suite).
 """
 
+import argparse
+import sys
 import zipfile
 from pathlib import Path
 
 import pytest
 
 from corpora_cli import cli
+
+
+def _usage_error(excinfo, capsys) -> str:
+    """Unpack a usage error: exit 2, message on stderr (`ui.fail`)."""
+    assert excinfo.value.code == 2
+    return capsys.readouterr().err
 
 
 def _write_sample(path):
@@ -61,14 +69,14 @@ class TestConvert:
         assert out.endswith("my-great-book.corpus")
         assert (tmp_path / "my-great-book.corpus").is_file()
 
-    def test_refuses_to_overwrite_without_force(self, tmp_path):
+    def test_refuses_to_overwrite_without_force(self, tmp_path, capsys):
         source = _write_sample(tmp_path / "sample.txt")
         output = tmp_path / "sample.corpus"
         output.write_bytes(b"existing")
 
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["convert", str(source), "-o", str(output)])
-        assert "--force" in str(excinfo.value)
+        assert "--force" in _usage_error(excinfo, capsys)
         assert output.read_bytes() == b"existing"
 
         assert cli.main(["convert", str(source), "-o", str(output), "--force"]) == 0
@@ -85,27 +93,27 @@ class TestConvert:
         assert excinfo.value.code == 2
         assert "image" in capsys.readouterr().err
 
-    def test_missing_source_errors(self, tmp_path):
+    def test_missing_source_errors(self, tmp_path, capsys):
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["convert", str(tmp_path / "nope.txt")])
-        assert "not found" in str(excinfo.value)
+        assert "not found" in _usage_error(excinfo, capsys)
 
-    def test_zip_requires_explicit_format(self, tmp_path):
+    def test_zip_requires_explicit_format(self, tmp_path, capsys):
         archive = tmp_path / "dataset.zip"
         with zipfile.ZipFile(archive, "w") as zf:
             zf.writestr("member.txt", "content")
 
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["convert", str(archive)])
-        assert "--format" in str(excinfo.value)
+        assert "--format" in _usage_error(excinfo, capsys)
 
-    def test_unknown_extension_requires_format(self, tmp_path):
+    def test_unknown_extension_requires_format(self, tmp_path, capsys):
         weird = tmp_path / "book.docx"
         weird.write_bytes(b"whatever")
 
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["convert", str(weird)])
-        assert "--format" in str(excinfo.value)
+        assert "--format" in _usage_error(excinfo, capsys)
 
     def test_converter_error_is_user_facing_exit_1(self, tmp_path, capsys):
         # A ZIP that is not a Text-Fabric dataset: passes the byte gate
@@ -130,10 +138,10 @@ class TestValidate:
         assert cli.main(["validate", str(bogus)]) == 1
         assert "INVALID" in capsys.readouterr().err
 
-    def test_missing_file_errors(self, tmp_path):
+    def test_missing_file_errors(self, tmp_path, capsys):
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["validate", str(tmp_path / "nope.corpus")])
-        assert "not found" in str(excinfo.value)
+        assert "not found" in _usage_error(excinfo, capsys)
 
 
 class TestFormatInference:
@@ -204,7 +212,7 @@ class TestLibrary:
         assert "user/archives" in captured.out
         assert "2 stored corpora." in captured.err
 
-    def test_unconfigured_storage_exits_with_message(self, monkeypatch):
+    def test_unconfigured_storage_exits_with_message(self, monkeypatch, capsys):
         import admin.services.storage as storage_module
 
         def raising():
@@ -213,37 +221,112 @@ class TestLibrary:
         monkeypatch.setattr(storage_module, "make_corpus_storage", raising)
         with pytest.raises(SystemExit) as excinfo:
             cli.main(["library", "list"])
-        assert "storage not configured" in str(excinfo.value)
+        assert "storage not configured" in _usage_error(excinfo, capsys)
+
+
+class TestLockedCommands:
+    """`publish`/`download`/`delete` wait for `corpora auth` (issue #28)."""
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["library", "publish", "alpha.corpus"],
+            ["library", "download", "alpha.corpus"],
+            ["library", "delete", "alpha.corpus", "--yes"],
+        ],
+    )
+    def test_locked_commands_refuse_and_never_reach_storage(self, argv, fake_storage, capsys):
+        with pytest.raises(SystemExit) as excinfo:
+            cli.main(argv)
+        message = _usage_error(excinfo, capsys)
+        assert "corpora auth" in message
+        assert cli.AUTH_ISSUE in message
+        assert fake_storage.deleted == []
+
+    def test_locked_commands_stay_out_of_argparse_errors(self, capsys):
+        # A typo must not advertise the commands the help hides.
+        with pytest.raises(SystemExit):
+            cli.main(["library", "bogus"])
+        rendered = capsys.readouterr().err
+        assert "invalid choice" in rendered
+        for hidden in cli.LOCKED_LIBRARY_COMMANDS:
+            assert hidden not in rendered
+
+    def test_locked_commands_are_hidden_from_help(self, capsys):
+        with pytest.raises(SystemExit):
+            cli.main(["library", "--help"])
+        rendered = capsys.readouterr().out
+        assert "list" in rendered
+        assert "show" in rendered
+        for hidden in ("publish", "download", "delete"):
+            assert hidden not in rendered
+
+
+def _run(library_func, **fields):
+    """Call a library implementation the way the parser will once unlocked."""
+    args = argparse.Namespace(library_func=library_func, **fields)
+    return cli._run_library(args)
+
+
+class TestLibraryImplementations:
+    """The locked commands' innards, which the lock will hand back."""
 
     def test_publish_prints_url(self, fake_storage, tmp_path, capsys):
         corpus = tmp_path / "alpha.corpus"
         corpus.write_bytes(b"zip")
-        assert cli.main(["library", "publish", str(corpus)]) == 0
+        assert _run(cli._cmd_library_publish, corpus=str(corpus)) == 0
         captured = capsys.readouterr()
         assert captured.out.strip() == "https://hub/alpha.corpus"
         assert "Published: alpha.corpus" in captured.err
 
-    def test_publish_requires_existing_file(self, fake_storage):
+    def test_publish_requires_existing_file(self, fake_storage, capsys):
         with pytest.raises(SystemExit) as excinfo:
-            cli.main(["library", "publish", "/nope.corpus"])
-        assert "not found" in str(excinfo.value)
+            _run(cli._cmd_library_publish, corpus="/nope.corpus")
+        assert "not found" in _usage_error(excinfo, capsys)
 
     def test_download_prints_destination(self, fake_storage, tmp_path, capsys):
-        assert cli.main(["library", "download", "alpha.corpus", "--dest", str(tmp_path)]) == 0
+        assert _run(cli._cmd_library_download, filename="alpha.corpus", dest=str(tmp_path)) == 0
         assert capsys.readouterr().out.strip() == str(tmp_path / "alpha.corpus")
 
     def test_delete_with_yes(self, fake_storage, capsys):
-        assert cli.main(["library", "delete", "alpha.corpus", "--yes"]) == 0
+        assert _run(cli._cmd_library_delete, filename="alpha.corpus", yes=True) == 0
         assert fake_storage.deleted == ["alpha.corpus"]
         assert "Deleted: alpha.corpus" in capsys.readouterr().err
 
-    def test_delete_without_yes_refuses_when_not_a_tty(self, fake_storage):
+    def test_delete_without_yes_refuses_when_not_a_tty(self, fake_storage, capsys):
         # pytest's captured stdin is not a tty, so the guard must trip
         # before any prompt.
         with pytest.raises(SystemExit) as excinfo:
-            cli.main(["library", "delete", "alpha.corpus"])
-        assert "--yes" in str(excinfo.value)
+            _run(cli._cmd_library_delete, filename="alpha.corpus", yes=False)
+        assert "--yes" in _usage_error(excinfo, capsys)
         assert fake_storage.deleted == []
+
+
+class TestUnexpectedFailures:
+    def test_main_installs_the_rich_traceback_handler(self):
+        # Anything the CLI does not handle itself should reach the user as a
+        # Rich traceback rather than the bare Python one.
+        original = sys.excepthook
+        try:
+            cli.main([])
+            assert sys.excepthook is not original
+            assert sys.excepthook.__module__ == "rich.traceback"
+        finally:
+            sys.excepthook = original
+
+    def test_ctrl_c_exits_130_without_a_traceback(self, tmp_path, monkeypatch, capsys):
+        corpus = tmp_path / "sample.corpus"
+        corpus.write_bytes(b"zip")
+
+        def interrupt(_archive):
+            raise KeyboardInterrupt
+
+        monkeypatch.setattr(cli, "validate_archive", interrupt)
+
+        assert cli.main(["validate", str(corpus)]) == 130
+        captured = capsys.readouterr()
+        assert "interrupted." in captured.err
+        assert "Traceback" not in captured.err
 
 
 class TestBareInvocation:

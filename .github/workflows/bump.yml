@@ -1,4 +1,4 @@
-# Bumps Formula/corpora.rb to a new corpora-cli release tag.
+# Bumps Formula/cli.rb to a new corpora-cli release tag.
 #
 # The formula installs this repo's own package (which pulls corpora-py from
 # PyPI as a dependency), so the bump target is a corpora-cli tag, not a
@@ -67,19 +67,19 @@ jobs:
           sed -i \
             -e "s|^  url \".*\"$|  url \"${URL}\"|" \
             -e "s|^  sha256 \".*\"$|  sha256 \"${SHA256}\"|" \
-            Formula/corpora.rb
+            Formula/cli.rb
           rm release.tar.gz
-          git diff --stat -- Formula/corpora.rb
+          git diff --stat -- Formula/cli.rb
 
       - name: Commit and push
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          if git diff --quiet -- Formula/corpora.rb; then
+          if git diff --quiet -- Formula/cli.rb; then
             echo "Formula already at ${VERSION}; nothing to commit."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Formula/corpora.rb
+          git add Formula/cli.rb
           git commit -m "corpora ${VERSION}"
           git push
