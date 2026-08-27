@@ -8,7 +8,7 @@ repaints Typer's rich help.
 
 The rules the rest of the package relies on:
 
-- Accent ``#F7B500`` marks *structure* — headings, argument names, help
+- Accent ``#D2A24C`` marks *structure* — headings, argument names, help
   sections, the running step. Semantics get colour of their own: green
   success, yellow warning, blue info, red error.
 - Nothing here is required for the CLI to work. Rich drops colour on a
@@ -37,7 +37,7 @@ from rich.tree import Tree
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from rich.progress import Task
 
-ACCENT = "#F7B500"
+ACCENT = "#D2A24C"
 
 THEME = Theme(
     {
@@ -51,6 +51,7 @@ THEME = Theme(
         "info": "blue",
         "error": "bold red",
         "muted": "dim",
+        "code": "grey85 on grey15",
         # Rich's own style names, repainted in the CLI's palette.
         "prompt.choices": ACCENT,
         "prompt.default": "dim",
@@ -363,14 +364,16 @@ def _step_label(label: str, state: str) -> str:
 # read as a style tag.
 
 
-def heading(text: str) -> None:
-    """Print an accent heading to stdout, with a blank line above it.
+def heading(text: str, *, gap: int = 2) -> None:
+    """Print an accent heading to stdout, with blank lines above it.
 
     The space belongs to the heading rather than the caller: every block in
     the output is introduced the same way, so they stay evenly separated
-    however they are combined.
+    however they are combined. Two blank lines by default — a table runs
+    right up against the next heading with only one — and the first heading
+    of a command's output passes ``gap=1``.
     """
-    out.line()
+    out.line(gap)
     out.print(Text(text, style="heading"))
 
 
@@ -521,6 +524,21 @@ def block(renderable: Any, console: Console | None = None) -> None:
     target = console or out
     target.line()
     target.print(renderable)
+
+
+def command_hint(command: str, console: Console | None = None) -> None:
+    """A follow-up command the reader can copy, set off like a code block.
+
+    Guidance, not output — it goes to stderr by default so piping a
+    command's real output never picks up the hint. The block background is
+    what says "this is a command"; piped and NO_COLOR output degrades to
+    the bare command line, still copyable.
+    """
+    from rich.padding import Padding
+
+    target = console or err
+    target.line()
+    target.print(Padding(Text(command, style="code"), (0, 2), style="code", expand=False))
 
 
 @contextmanager

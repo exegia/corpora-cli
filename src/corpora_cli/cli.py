@@ -599,6 +599,7 @@ def library_list() -> None:
     ui.block(table)
     total = f", {total_bytes / (1024 * 1024):.1f} MB" if total_bytes else ""
     ui.note(f"{ui.LIBRARY} {len(corpora)} stored corpora{total}.")
+    ui.command_hint(f"corpora library show {corpora[0].filename}")
 
 
 @library_app.command("show")
@@ -627,20 +628,25 @@ def library_show(
         for key, value in manifest.items()
         if isinstance(value, (str, int, float, bool)) and str(value)
     }
-    ui.heading(f"{ui.TITLE} manifest")
+    ui.heading(f"{ui.TITLE} manifest", gap=1)
     ui.out.print(ui.key_value_table(scalars, key_header="field", value_header="value"))
 
     # `sections` is `{"levels": [...], "items": [...]}` (see
     # corpus_detail._build_sections); each item carries `title`/`ref` and
     # one level of `children`.
     sections: dict[str, Any] = index.get("sections") or {}
+    items = sections.get("items") or []
     ui.heading(f"{ui.SECTIONS} sections")
-    ui.out.print(ui.section_tree(sections.get("items") or []))
+    ui.out.print(ui.section_tree(items))
 
     node_types = index.get("node_types") or []
     if node_types:
         ui.heading(f"{ui.RUN} structure")
         ui.out.print(ui.node_type_table(node_types))
+
+    if content is None and items and items[0].get("ref"):
+        # Point at the next step: reading a section's passages.
+        ui.command_hint(f'corpora library show {filename} --ref "{items[0]["ref"]}"')
 
     if content is not None:
         passages = content.get("passages") or []

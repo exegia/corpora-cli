@@ -210,6 +210,9 @@ class TestLibrary:
         assert "2.0 MB" in captured.out
         assert "user/archives" in captured.out
         assert "2 stored corpora, 4.0 MB." in captured.err
+        # The copyable follow-up hint rides stderr, never the data stream.
+        assert "corpora library show alpha.corpus" in captured.err
+        assert "corpora library show" not in captured.out
 
     def test_unconfigured_storage_exits_with_message(self, monkeypatch, capsys):
         import admin.services.storage as storage_module
