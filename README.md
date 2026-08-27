@@ -92,7 +92,7 @@ the `venv` module + `pip`. Relocate with `CORPORA_HOME` / `CORPORA_BIN`.
 ## Usage
 
 ```text
-usage: corpora [-h] {convert,validate,library} ...
+usage: corpora [-h] {convert,validate,schema,reconcile,library} ...
 ```
 
 Output is line-oriented and scripting-friendly: color drops away when piped,
@@ -140,6 +140,48 @@ Runs the corpus integrity checks over a `.corpus` file and prints a verdict
 plus archive stats:
 
 <img src="docs/corpora-validate.svg" alt="corpora validate output" width="760">
+
+### `corpora schema` / `corpora reconcile` — source fidelity
+
+`validate` asks "is the archive internally sound?"; these two ask "does it
+faithfully represent the document it was converted from?"
+([#41](https://github.com/exegia/homebrew-corpora/issues/41)). `schema`
+normalises the source document into a reference schema — levels, units,
+labels, and the opening word shingles used for alignment; `reconcile` locates
+those shingles in the archive's Text-Fabric slot stream and reports missing
+units, extra units, boundary drift, length/label mismatches and reordering
+(`RC001`–`RC008`), with optional append-only `.tf` patches for missing
+structure.
+
+```bash
+corpora schema book.epub -o book.schema.json
+corpora reconcile book.corpus --schema book.schema.json --yes
+```
+
+The two sides name their structural levels differently (a Markdown or
+OCR'd-PDF reference yields `h1`/`h2`; the corpus declares its own
+`@sectionTypes`), so reconciliation bridges them first and compares **every
+mapped level pairwise** — a missing or drifted *part* is reported, not just
+chapter-level trouble:
+
+```bash
+# explicit mapping, reference side on the left
+corpora reconcile book.corpus --schema book.schema.json \
+    --map h1=book --map h2=chapter
+
+# or persist the confirmed mapping next to the corpus for CI
+corpora reconcile book.corpus --schema book.schema.json \
+    --map-file book.levelmap.json
+```
+
+With no `--map`, the mapping is inferred from depth alignment, unit counts
+and anchor concordance, printed with its evidence, and must be confirmed —
+pass `--yes` in scripts and CI. A typo on either side of `--map` fails with
+the valid options listed; levels left unmapped on either side are reported
+rather than silently skipped. `--report`, `--json` and `--patch-dir` write
+the Markdown report, the machine-readable result, and reviewable append-only
+patches. Exit codes follow the house rule: `0` clean, `1` discrepancies
+found, `2` a bad or unconfirmed mapping.
 
 ### `corpora library` — manage stored archives
 
