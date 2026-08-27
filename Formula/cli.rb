@@ -19,8 +19,8 @@ class Cli < Formula
 
   desc "Convert documents into queryable .corpus text archives"
   homepage "https://github.com/exegia/homebrew-corpora"
-  url "https://github.com/exegia/homebrew-corpora/archive/refs/tags/v1.2.0.tar.gz"
-  sha256 "a4360e22a69e4ff02e618d1941f4ef89eaf547b0720d94348ca2281d7cac6a5c"
+  url "https://github.com/exegia/homebrew-corpora/archive/refs/tags/v1.2.1.tar.gz"
+  sha256 "1ef7ce0586789a8dbedbdfb5f44675ccdd63567b217eb84d648c2a815f4828b8"
   license "MIT"
 
   depends_on "python@3.13"
