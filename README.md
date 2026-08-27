@@ -92,7 +92,9 @@ the `venv` module + `pip`. Relocate with `CORPORA_HOME` / `CORPORA_BIN`.
 ## Usage
 
 ```text
-usage: corpora [-h] {convert,validate,schema,reconcile,library} ...
+Usage: corpora [OPTIONS] COMMAND [ARGS]...
+
+Commands: convert  validate  schema  reconcile  library
 ```
 
 Output is line-oriented and scripting-friendly: color drops away when piped,

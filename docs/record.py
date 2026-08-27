@@ -38,7 +38,7 @@ WIDTH = 88
 import terminal_svg  # noqa: E402
 from rich.console import Console  # noqa: E402
 
-# argparse wraps its help to $COLUMNS; keep it at the recorded width.
+# Help output wraps to $COLUMNS; keep it at the recorded width.
 os.environ["COLUMNS"] = str(WIDTH)
 
 from corpora_cli import cli, ui  # noqa: E402
@@ -100,21 +100,29 @@ _INDEX = {
             {"title": "The Carpet-Bag", "ref": "Moby Dick 2", "children": []},
             {"title": "The Spouter-Inn", "ref": "Moby Dick 3", "children": []},
         ],
-    }
+    },
+    "node_types": [
+        {"type": "book", "count": 1, "avg_slots": 208642.0, "is_slot": False},
+        {"type": "chapter", "count": 135, "avg_slots": 1545.5, "is_slot": False},
+        {"type": "paragraph", "count": 2694, "avg_slots": 77.4, "is_slot": False},
+        {"type": "word", "count": 208642, "avg_slots": 1.0, "is_slot": True},
+    ],
 }
 
 _CONTENT = {
     "total": 42,
     "passages": [
         {
+            "ref": "Moby Dick 1:1",
             "text": "Call me Ishmael. Some years ago—never mind how long precisely—having "
             "little or no money in my purse, and nothing particular to interest me on "
             "shore, I thought I would sail about a little and see the watery part of "
-            "the world."
+            "the world.",
         },
         {
+            "ref": "Moby Dick 1:2",
             "text": "There now is your insular city of the Manhattoes, belted round by "
-            "wharves as Indian isles by coral reefs—commerce surrounds it with her surf."
+            "wharves as Indian isles by coral reefs—commerce surrounds it with her surf.",
         },
     ],
 }
@@ -133,19 +141,25 @@ def _recorder() -> Console:
 @contextlib.contextmanager
 def _shot(name: str):
     """Point the CLI's output at a recorder, then write ``docs/<name>.svg``."""
+    from typer import rich_utils
+
     console = _recorder()
-    saved = (ui.err, ui.out, ui.spinner, ui.Parser._print_message)
+    saved = (ui.err, ui.out, ui.spinner)
     ui.err = ui.out = console
     # The spinner is transient on a real terminal — there is nothing left of
     # it to photograph.
     ui.spinner = lambda message: contextlib.nullcontext()
-    ui.Parser._print_message = lambda self, message, file=None: console.print(
-        ui.colorize_help(message), end=""
-    )
+    # Typer builds its help console per call from sys.stdout; hand it the
+    # recorder instead so `--help` shots carry the real styling.
+    saved_factory = getattr(rich_utils, "_get_rich_console", None)
+    if saved_factory is not None:
+        rich_utils._get_rich_console = lambda stderr=False: console
     try:
         yield console
     finally:
-        ui.err, ui.out, ui.spinner, ui.Parser._print_message = saved
+        ui.err, ui.out, ui.spinner = saved
+        if saved_factory is not None:
+            rich_utils._get_rich_console = saved_factory
     path = terminal_svg.save(console, DOCS / f"{name}.svg")
     print(f"wrote {path.relative_to(DOCS.parent)}")
 

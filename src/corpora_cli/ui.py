@@ -3,8 +3,8 @@
 Everything the terminal sees is decided here so `corpora_cli.cli` can stay
 about the pipeline: the accent/semantic palette, the emoji vocabulary, the
 two consoles (stdout for command output, stderr for narration), the live
-task list that tracks the conversion checkpoints, and the colouriser that
-paints argparse's help.
+task list that tracks the conversion checkpoints, and the palette bridge that
+repaints Typer's rich help.
 
 The rules the rest of the package relies on:
 
@@ -19,12 +19,11 @@ The rules the rest of the package relies on:
 
 from __future__ import annotations
 
-import argparse
 import sys
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager, redirect_stdout
 from types import TracebackType
-from typing import IO, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any
 
 from rich import box
 from rich.console import Console, RenderableType
@@ -137,8 +136,8 @@ def fail(message: str) -> SystemExit:
 
     Exit 2 is the request being wrong — a path that isn't there, a format
     that can't be guessed, a command that isn't yours to run — as distinct
-    from exit 1, work that was attempted and failed. argparse already uses 2
-    for the errors it raises itself; this keeps the rest of the CLI honest
+    from exit 1, work that was attempted and failed. Click already uses 2
+    for its own usage errors; this keeps the rest of the CLI honest
     about the same line.
 
     The message is printed here rather than carried on the exception:
@@ -149,54 +148,38 @@ def fail(message: str) -> SystemExit:
     return SystemExit(2)
 
 
-# ── argparse help ────────────────────────────────────────────────────────────
-# argparse computes its column alignment from plain strings, so the colour is
-# applied to the *finished* help text instead of to the pieces it is built
-# from: zero effect on layout, and usage/error messages get painted too.
+# ── typer help ───────────────────────────────────────────────────────────────
+# Typer renders help through Rich itself (panelled options, wrapped text);
+# the module-level style constants in `typer.rich_utils` are how its palette
+# is repainted in ours. They are internal API, so every assignment is
+# guarded: a Typer that renames one simply keeps its default for that piece
+# rather than breaking the CLI.
 
-_HELP_PATTERNS: tuple[tuple[str, str | None], ...] = (
-    (r"(?m)^[a-z][a-z ]*:", "heading"),  # "usage:", "options:", "positional arguments:"
-    # The program name in the usage line: a named group carrying its style.
-    (r"(?m)^usage: (?P<accent>[^\[\n]+)", None),
-    (r"(?m)^  (?![- ])\S+", "arg"),  # positional names and subcommands
-    (r"(?<![\w-])--?[a-zA-Z][\w-]*", "arg"),  # -f / --format, anywhere they appear
-    (r"(?m)^.*: error: .*$", "error"),  # argparse's own parse failures
-)
-
-
-def colorize_help(message: str) -> Text:
-    # `from_ansi`, not `Text`, so any escape a future argparse slips in is
-    # decoded into styles instead of being measured as visible characters.
-    text = Text.from_ansi(message)
-    for pattern, style in _HELP_PATTERNS:
-        if style is None:
-            text.highlight_regex(pattern, style_prefix="")
-        else:
-            text.highlight_regex(pattern, style=style)
-    return text
+_TYPER_HELP_STYLES: dict[str, str] = {
+    "STYLE_OPTION": f"bold {ACCENT}",
+    "STYLE_ARGUMENT": f"bold {ACCENT}",
+    "STYLE_COMMAND": f"bold {ACCENT}",
+    "STYLE_SWITCH": f"bold {ACCENT}",
+    "STYLE_METAVAR": "dim",
+    "STYLE_METAVAR_SEPARATOR": "dim",
+    "STYLE_USAGE": f"bold {ACCENT}",
+    # Readable body text: Typer dims all help text by default.
+    "STYLE_HELPTEXT": "",
+    "STYLE_OPTION_DEFAULT": "dim",
+    "STYLE_REQUIRED_SHORT": "bold red",
+    "STYLE_REQUIRED_LONG": "bold red",
+}
 
 
-class Parser(argparse.ArgumentParser):
-    """``ArgumentParser`` that prints help, usage and errors through Rich.
-
-    Subparsers inherit the class for free — `add_subparsers` defaults
-    ``parser_class`` to ``type(self)`` (and passes ``color`` down).
-    """
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Python 3.14's argparse colours help itself. Two colourisers on one
-        # string fight over the same characters — and its palette is not
-        # ours — so argparse hands over plain text and `colorize_help` paints
-        # it.
-        if sys.version_info >= (3, 14):
-            kwargs.setdefault("color", False)
-        super().__init__(*args, **kwargs)
-
-    def _print_message(self, message: str, file: IO[str] | None = None) -> None:
-        if not message:
-            return
-        console = Console(file=file or sys.stderr, highlight=False, soft_wrap=True, theme=THEME)
-        console.print(colorize_help(message), end="")
+def style_typer_help() -> None:
+    """Repaint Typer's rich help in the CLI's accent palette."""
+    try:
+        from typer import rich_utils
+    except ImportError:  # pragma: no cover - typer always present in practice
+        return
+    for constant, style in _TYPER_HELP_STYLES.items():
+        if hasattr(rich_utils, constant):
+            setattr(rich_utils, constant, style)
 
 
 # ── conversion task list ─────────────────────────────────────────────────────
@@ -423,12 +406,93 @@ def key_value_table(mapping: Mapping[str, Any], *, key_header: str, value_header
     return built
 
 
-def passage_table(passages: Sequence[str]) -> Table:
-    built = table("#", "passage", justify=("right", "left"))
-    built.columns[0].style = "muted"
-    for index, passage in enumerate(passages, start=1):
-        built.add_row(Text(str(index)), Text(passage))
+def passage_table(passages: Sequence[Any]) -> Table:
+    """Passages as `corpus_detail.get_content` returns them, or plain strings.
+
+    Dicts carry ``ref``/``text`` — the ref column keeps every passage
+    addressable (``corpora library show … --ref <ref>`` again, deeper). A
+    plain-string sequence renders without the ref column.
+    """
+    rows: list[tuple[str, str]] = []
+    for passage in passages:
+        if isinstance(passage, Mapping):
+            text = str(passage.get("text") or "")
+            if text:
+                rows.append((str(passage.get("ref") or ""), text))
+        elif str(passage):
+            rows.append(("", str(passage)))
+    with_refs = any(ref for ref, _ in rows)
+    if with_refs:
+        built = table("ref", "passage")
+        built.columns[0].style = "accent"
+        built.columns[0].no_wrap = True
+    else:
+        built = table("#", "passage", justify=("right", "left"))
+        built.columns[0].style = "muted"
+    for index, (ref, text) in enumerate(rows, start=1):
+        built.add_row(Text(ref) if with_refs else Text(str(index)), Text(text))
     return built
+
+
+def node_type_table(rows: Sequence[Mapping[str, Any]]) -> Table:
+    """Per-otype stats — the ``node_types`` list `corpus_detail.get_index`
+    returns (``type``/``count``/``avg_slots``/``is_slot``).
+
+    The slot type is the corpus's atom (usually words); everything else
+    spans slots, and the average span is what tells a book from a verse at
+    a glance.
+    """
+    built = table("node type", "count", "avg span", justify=("left", "right", "right"))
+    built.columns[0].style = "accent"
+    for row in rows:
+        name = str(row.get("type") or "")
+        if row.get("is_slot"):
+            name = f"{name} (slot)"
+        count = row.get("count")
+        avg = row.get("avg_slots")
+        built.add_row(
+            Text(name),
+            Text(f"{count:,}" if isinstance(count, int) else str(count or "")),
+            Text("—" if row.get("is_slot") else str(avg if avg is not None else "")),
+        )
+    return built
+
+
+def print_validation(summary: Mapping[str, Any], console: Console | None = None) -> None:
+    """Render a validation summary as a verdict panel on stderr.
+
+    The panel border carries the verdict colour and the first line the
+    verdict text ("Validation: valid" / "Validation: INVALID"), so a piped,
+    colourless run still reads unambiguously. Stats become a key/value
+    table; failure reasons are listed inside the panel, each with ❌.
+    """
+    from rich.console import Group
+    from rich.panel import Panel
+
+    valid = bool(summary.get("valid"))
+    verdict_style = "success" if valid else "error"
+    parts: list[RenderableType] = [
+        Text(
+            f"{OK} Validation: valid" if valid else f"{ERR} Validation: INVALID",
+            style=verdict_style,
+        )
+    ]
+    stats = summary.get("stats") or {}
+    if stats:
+        parts.append(key_value_table(stats, key_header="stat", value_header="value"))
+    for reason in summary.get("reasons") or []:
+        parts.append(Text(f"{ERR} reason: {reason}", style="error"))
+    target = console or err
+    target.print(
+        Panel(
+            Group(*parts),
+            title=Text("corpus validation", style="heading"),
+            border_style=verdict_style,
+            box=box.ROUNDED,
+            expand=False,
+            padding=(0, 2),
+        )
+    )
 
 
 def section_tree(items: Sequence[Mapping[str, Any]]) -> Tree:
@@ -441,6 +505,10 @@ def section_tree(items: Sequence[Mapping[str, Any]]) -> Tree:
         node = tree.add(Text(str(item.get("title") or item.get("ref") or ""), style="accent"))
         for child in item.get("children") or []:
             node.add(Text(str(child.get("title") or child.get("ref") or "")))
+        if item.get("truncated"):
+            # The index caps children per node; the ellipsis says "there is
+            # more" without pretending to know how much.
+            node.add(Text("…", style="muted"))
     return tree
 
 

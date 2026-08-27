@@ -3,8 +3,7 @@
 Two things are worth pinning down here: the conversion task list actually
 tracks `run_conversion`'s checkpoints (and never swallows a message it does
 not recognise -- those strings live in corpora-py and can change under us),
-and the help colouriser paints argparse's output without ANSI leaking into
-non-terminal output.
+and Typer's rich help stays plain text (no ANSI) in non-terminal output.
 """
 
 import io
@@ -91,22 +90,28 @@ class TestConversionReporter:
 
 
 class TestHelp:
-    def test_headings_and_flags_get_the_accent(self):
-        text = ui.colorize_help("usage: corpora [-h]\n\noptions:\n  -h, --help  show this\n")
-        styled = {(text.plain[span.start : span.end], str(span.style)) for span in text.spans}
-        assert ("usage:", "heading") in styled
-        assert ("options:", "heading") in styled
-        assert ("--help", "arg") in styled
-        # The prog name rides a named group, which is the one styling path
-        # that does not name its style inline.
-        assert ("corpora ", "accent") in styled
-
-    def test_help_is_plain_text_when_not_a_terminal(self):
-        buffer = io.StringIO()
-        cli.build_parser().print_help(buffer)
-        rendered = buffer.getvalue()
+    def test_help_lists_every_command_without_ansi_when_piped(self, capsys):
+        assert cli.main(["--help"]) == 0
+        rendered = capsys.readouterr().out
+        # The scripting contract: no ANSI leaks into non-terminal output.
         assert "\x1b" not in rendered
-        assert "convert" in rendered
+        for command in ("convert", "validate", "schema", "reconcile", "library"):
+            assert command in rendered
+
+    def test_bare_overview_lands_on_stderr(self, capsys):
+        # A bare `corpora` is bad usage: overview on stderr, exit 2 — stdout
+        # stays clean for scripts.
+        assert cli.main([]) == 2
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "convert" in captured.err
+
+    def test_typer_palette_is_applied(self):
+        from typer import rich_utils
+
+        ui.style_typer_help()
+        assert ui.ACCENT in rich_utils.STYLE_OPTION
+        assert ui.ACCENT in rich_utils.STYLE_USAGE
 
 
 class TestTables:
