@@ -18,9 +18,9 @@ class Cli < Formula
   include Language::Python::Virtualenv
 
   desc "Convert documents into queryable .corpus text archives"
-  homepage "https://github.com/exegia/corpora-cli"
-  url "https://github.com/exegia/corpora-cli/archive/refs/tags/v0.0.2.tar.gz"
-  sha256 "b3ae74bf7fadcec6e5caeeaaafa8e6d55e691cc5fe4c03fe72d2ddd97b9322f6"
+  homepage "https://github.com/exegia/homebrew-corpora"
+  url "https://github.com/exegia/homebrew-corpora/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "6229f992b193afe57e69bb86f19f1e0ed4a46773ffa5bef1cb6b11377e16557e"
   license "MIT"
 
   depends_on "python@3.13"

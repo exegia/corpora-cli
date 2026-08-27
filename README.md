@@ -1,3 +1,4 @@
+
 <p align="center">
   <img src="docs/git-banner.png" alt="corpora logo">
 </p>
@@ -151,6 +152,9 @@ The Homebrew formula tracks this repo's release tags. On each release,
 url/version/sha256 from the tag tarball and commits to `main` — the bump
 commit _is_ the release of the formula. Manual bumps: _Actions → Bump formula
 → Run workflow_ with the version.
+
+corpora-py releases don't touch the formula: pip resolves the newest
+compatible corpora-py from PyPI at install time.
 
 ## Thanks to
 
