@@ -7,7 +7,7 @@ FORMULA  := $(TAP)/cli
 
 .DEFAULT_GOAL := help
 
-.PHONY: help tap style audit install test pytest ci docs
+.PHONY: help tap style audit install test pytest install-script ci docs
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -38,6 +38,9 @@ pytest: ## Lint + test the corpora_cli Python package (uv-managed venv)
 	uv run ruff check src tests docs
 	uv run ruff format --check src tests docs
 	uv run pytest -q
+
+install-script: ## Lint install.sh exactly like CI's brew style (shellcheck --enable=all + shfmt)
+	brew style install.sh
 
 ci: style audit install test pytest ## Everything the PR check job runs
 
