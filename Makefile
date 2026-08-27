@@ -39,9 +39,9 @@ pytest: ## Lint + test the corpora_cli Python package (uv-managed venv)
 	uv run ruff format --check src tests docs
 	uv run pytest -q
 
-install-script: ## Lint the curl|bash installer (shellcheck)
+install-script: ## Lint the curl|bash installer (shellcheck --enable=all, like brew style)
 	@command -v shellcheck >/dev/null || brew install shellcheck
-	shellcheck install.sh
+	shellcheck --enable=all install.sh
 
 ci: style audit install test pytest install-script ## Everything the PR check job runs
 

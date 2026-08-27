@@ -1,4 +1,11 @@
 #!/bin/sh
+# shellcheck disable=SC2249,SC2250,SC2292,SC2310,SC2311,SC2312
+# Homebrew's `brew style` runs shellcheck --enable=all over the tap's *.sh
+# files (effectively in bash dialect). This is a POSIX sh installer that
+# intentionally uses unbraced `$var`, `[ ]` tests, and `cmd || die`; the
+# disabled checks are the --enable=all style/info nits those choices trip, not
+# correctness issues (errors are handled explicitly via || die / || true /
+# || continue; set -e is only a backstop).
 # corpora — portable installer (curl | bash).
 #
 # Mirrors the Homebrew formula (Formula/cli.rb) without Homebrew: it builds
