@@ -90,7 +90,13 @@ class TestConversionReporter:
 
 
 class TestHelp:
-    def test_help_lists_every_command_without_ansi_when_piped(self, capsys):
+    def test_help_lists_every_command_without_ansi_when_piped(self, capsys, monkeypatch):
+        # Typer force-enables terminal colour on CI (GITHUB_ACTIONS et al.,
+        # baked into rich_utils.FORCE_TERMINAL at import); this test is
+        # about the *piped* contract, so pin the constant to a plain pipe.
+        from typer import rich_utils
+
+        monkeypatch.setattr(rich_utils, "FORCE_TERMINAL", False, raising=False)
         assert cli.main(["--help"]) == 0
         rendered = capsys.readouterr().out
         # The scripting contract: no ANSI leaks into non-terminal output.
