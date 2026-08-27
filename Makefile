@@ -3,11 +3,11 @@
 # the check job does). The branch model lives in .github/WORKFLOW.md.
 
 TAP      := exegia/corpora
-FORMULA  := $(TAP)/corpora
+FORMULA  := $(TAP)/cli
 
 .DEFAULT_GOAL := help
 
-.PHONY: help tap style audit install test pytest ci
+.PHONY: help tap style audit install test pytest ci docs
 
 help: ## List targets
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -35,16 +35,28 @@ test: ## Run the formula's test block (convert -> validate round-trip)
 pytest: ## Lint + test the corpora_cli Python package (uv-managed venv)
 	@command -v uv >/dev/null || brew install uv
 	uv sync --quiet
-	uv run ruff check src tests
-	uv run ruff format --check src tests
+	uv run ruff check src tests docs
+	uv run ruff format --check src tests docs
 	uv run pytest -q
 
 ci: style audit install test pytest ## Everything the PR check job runs
 
+# ── Docs ──────────────────────────────────────────────────────────────────────
+# The README's terminal shots are generated, never hand-captured, so they
+# can't drift from what `corpora_cli.ui` prints. The SVGs come out of Rich's
+# own exporter; the GIF needs a real terminal, so it goes through vhs.
+
+docs: ## Re-record the README's terminal shots (docs/*.svg + the convert GIF)
+	@command -v uv >/dev/null || brew install uv
+	@command -v vhs >/dev/null || brew install vhs
+	uv sync --quiet
+	uv run python docs/record.py
+	vhs docs/convert.tape
+
 # ── Release pipeline ──────────────────────────────────────────────────────────
 # The corpora-py pipeline adapted to the tap. The repo's own version (the tap
 # infra, not the corpora version the formula ships — that one lives in
-# Formula/corpora.rb and is bumped by bump.yml) is the VERSION file at the
+# Formula/cli.rb and is bumped by bump.yml) is the VERSION file at the
 # repo root; it plays the role corpora-py's pyproject.toml version plays.
 
 # The long-lived branch. Production; protected; PRs only, from release/vX.Y.Z
