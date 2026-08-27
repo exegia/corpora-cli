@@ -10,7 +10,6 @@ monkeypatched at the `make_corpus_storage` seam (the real backends are
 covered by the storage service suite).
 """
 
-import argparse
 import sys
 import zipfile
 from pathlib import Path
@@ -210,7 +209,7 @@ class TestLibrary:
         assert "alpha.corpus" in captured.out
         assert "2.0 MB" in captured.out
         assert "user/archives" in captured.out
-        assert "2 stored corpora." in captured.err
+        assert "2 stored corpora, 4.0 MB." in captured.err
 
     def test_unconfigured_storage_exits_with_message(self, monkeypatch, capsys):
         import admin.services.storage as storage_module
@@ -243,18 +242,17 @@ class TestLockedCommands:
         assert cli.AUTH_ISSUE in message
         assert fake_storage.deleted == []
 
-    def test_locked_commands_stay_out_of_argparse_errors(self, capsys):
+    def test_locked_commands_stay_out_of_click_errors(self, capsys):
         # A typo must not advertise the commands the help hides.
         with pytest.raises(SystemExit):
             cli.main(["library", "bogus"])
         rendered = capsys.readouterr().err
-        assert "invalid choice" in rendered
+        assert "No such command" in rendered
         for hidden in cli.LOCKED_LIBRARY_COMMANDS:
             assert hidden not in rendered
 
     def test_locked_commands_are_hidden_from_help(self, capsys):
-        with pytest.raises(SystemExit):
-            cli.main(["library", "--help"])
+        assert cli.main(["library", "--help"]) == 0
         rendered = capsys.readouterr().out
         assert "list" in rendered
         assert "show" in rendered
@@ -263,9 +261,15 @@ class TestLockedCommands:
 
 
 def _run(library_func, **fields):
-    """Call a library implementation the way the parser will once unlocked."""
-    args = argparse.Namespace(library_func=library_func, **fields)
-    return cli._run_library(args)
+    """Call a library implementation the way the command body will once
+    unlocked: keyword arguments in, `typer.Exit` out for a failed run."""
+    import typer
+
+    try:
+        library_func(**fields)
+    except typer.Exit as exc:
+        return exc.exit_code
+    return 0
 
 
 class TestLibraryImplementations:
