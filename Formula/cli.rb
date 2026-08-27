@@ -14,7 +14,7 @@
 # (.github/workflows/bump.yml) rewrites url/sha256 on each corpora-cli
 # release tag. `corpora-api` and `cf-mcp` still come from the corpora-py
 # dependency's entry points.
-class Corpora < Formula
+class Cli < Formula
   include Language::Python::Virtualenv
 
   desc "Convert documents into queryable .corpus text archives"
