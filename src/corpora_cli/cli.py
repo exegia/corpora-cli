@@ -51,6 +51,7 @@ colour on a non-tty; ``NO_COLOR`` is honoured).
 from __future__ import annotations
 
 import contextlib
+import gc
 import json
 import re
 import sys
@@ -136,6 +137,20 @@ def _human_size(size_bytes: int) -> str:
     if size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
     return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+def _release_command_resources() -> None:
+    """Release resources held by the third-party corpus loaders.
+
+    Text-Fabric and Context-Fabric do not currently expose a common close
+    lifecycle. Context-Fabric's mmap-backed API also contains reference cycles,
+    so merely returning from a command leaves its mapped files open until
+    Python happens to collect them. The CLI is an invocation boundary rather
+    than a long-lived corpus session; collect here so repeated in-process
+    ``main()`` calls (as used by the test suite and embedding callers) have
+    the same resource behavior as separate CLI processes.
+    """
+    gc.collect()
 
 
 def _slugify(name: str) -> str:
@@ -279,6 +294,11 @@ def convert(
         except ConversionError as exc:
             ui.error(str(exc))
             raise typer.Exit(1) from exc
+        finally:
+            # Release mmap-backed loader state before the temporary corpus
+            # directory is removed, including when the command is called
+            # directly rather than through `main()`.
+            _release_command_resources()
 
     assert result is not None
     ui.note(f"  {result.name} — {_human_size(result.stat().st_size)}")
@@ -293,7 +313,10 @@ def validate(
     archive = corpus.expanduser()
     if not archive.is_file():
         raise ui.fail(f"corpus file not found: {archive}")
-    summary = validate_archive(archive)
+    try:
+        summary = validate_archive(archive)
+    finally:
+        _release_command_resources()
     ui.print_validation(summary)
     if not summary.get("valid"):
         raise typer.Exit(1)
@@ -613,15 +636,23 @@ def library_show(
     ] = "",
 ) -> None:
     """Show a stored archive's manifest, structure, and section tree."""
-    from admin.services.corpus_detail import get_content, get_index, get_manifest
+    from admin.services.corpus_detail import get_content, get_index, get_manifest, invalidate
 
     # corpus_detail (via text-fabric) chatters on stdout; `ui.spinner` keeps
     # stdout clean for the rendered output.
-    with _storage_errors():
-        with ui.spinner(f"Reading {filename}…"):
-            manifest = get_manifest(filename)
-            index = get_index(filename)
-            content = get_content(filename, ref=ref) if ref else None
+    try:
+        with _storage_errors():
+            with ui.spinner(f"Reading {filename}…"):
+                manifest = get_manifest(filename)
+                index = get_index(filename)
+                content = get_content(filename, ref=ref) if ref else None
+    finally:
+        # The service caches the API for server-side repeated reads. A CLI
+        # invocation has no subsequent request that can benefit from it, so
+        # discard the extraction and its mmap-backed API at this boundary.
+        with contextlib.suppress(Exception):
+            invalidate(filename)
+        _release_command_resources()
 
     scalars = {
         key: value
@@ -791,6 +822,8 @@ def main(argv: list[str] | None = None) -> int:
         # Ctrl-C is an answer, not a crash — no traceback for it.
         ui.log(f"{ui.WARN} interrupted.", style="warning")
         return 130
+    finally:
+        _release_command_resources()
     if result == 130:
         # Click swallows a KeyboardInterrupt inside a command and hands back
         # 130 instead of re-raising, so the interrupt note prints here.

@@ -1,19 +1,16 @@
-
 <p align="center">
   <img src="docs/git-banner.png" alt="corpora logo">
 </p>
 
 # corpora/cli
 
-<p align="center">
-  Convert EPUBs, PDFs, HTML, TEI/XML, and plain text into queryable
-  <code>.corpus</code> archives — from your terminal.
-</p>
+Convert EPUBs, PDFs, HTML, TEI/XML, and plain text into queryable `.corpus`
+archives — from your terminal.
 
-<p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/homebrew-exegia%2Fcorpora%2Fcli-yellow.svg" alt="Homebrew formula">
-</p>
+![GitHub Release](https://img.shields.io/github/v/release/exegia/homebrew-corpora?sort=semver&display_name=tag&style=for-the-badge&color=%23d2a24c)
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/exegia/homebrew-corpora/release.yml?style=for-the-badge)
+![Static Badge](https://img.shields.io/badge/license-MIT-black?style=for-the-badge)
+![Static Badge](https://img.shields.io/badge/homebrew-exegia%2Fcorpora%2Fcli-black?style=for-the-badge)
 
 <p align="center">
   <img src="docs/corpora-convert.gif" alt="corpora converting an EPUB into a .corpus archive" width="800">
@@ -36,15 +33,6 @@ on the way in.
 brew install exegia/corpora/cli
 ```
 
-This builds the CLI into its own virtualenv (Python 3.13, resolved from PyPI)
-and links three commands:
-
-| Command       | What it does                                                              |
-| ------------- | ------------------------------------------------------------------------- |
-| `corpora`     | Conversion, validation and library CLI                                    |
-| `corpora-api` | Combined FastAPI app (conversion API at `/convert`, MCP server at `/mcp`) |
-| `cf-mcp`      | Standalone MCP server (stdio) for AI clients                              |
-
 Verify the install:
 
 ```bash
@@ -53,36 +41,26 @@ corpora --help
 
 <img src="docs/corpora-help.svg" alt="corpora --help output" width="760">
 
-Upgrade or remove later with:
-
-```bash
-brew upgrade exegia/corpora/cli
-```
-
-```bash
-brew uninstall exegia/corpora/cli
-```
-
-### Without Homebrew (`curl | bash`)
+### Without Homebrew
 
 On machines without Homebrew (Linux, or macOS where you'd rather not use a
-formula), install with the one-liner. It builds `corpora-cli` from a
-release-tag tarball into its own virtualenv under `~/.corpora`, resolves the
-`corpora-py` dependency closure from PyPI, and links the same three commands
-into `~/.local/bin`:
+formula), install with the one-liner:
+
+1. It builds `corpora-cli` into its own virtualenv under `~/.corpora`.
+2. Resolves the `corpora-py` dependency closure from PyPI.
+3. Links the same command into `~/.local/bin`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash
 ```
 
-Homebrew stays the recommended path on macOS — the formula handles keg
-hygiene and the native-extension re-signing for you. The script mirrors that
-logic (including the macOS codesign fix) without Homebrew.
-
-Pin a release, or remove it later:
+### Pin a release, or remove it later
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash -s -- --version vX.Y.Z
+```
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/exegia/homebrew-corpora/main/install.sh | bash -s -- --uninstall
 ```
 
@@ -91,16 +69,16 @@ the `venv` module + `pip`. Relocate with `CORPORA_HOME` / `CORPORA_BIN`.
 
 ## Usage
 
-```text
+```bash
+# corpora --help for usage details
 Usage: corpora [OPTIONS] COMMAND [ARGS]...
 
 Commands: convert  validate  schema  reconcile  library
 ```
 
-Output is line-oriented and scripting-friendly: color drops away when piped,
-and `NO_COLOR` is honoured.
+### Convert
 
-### `corpora convert` — document → `.corpus`
+Converts a document to a `.corpus` archive.
 
 ```bash
 corpora convert book.epub --name "My Book" -o book.corpus
@@ -118,21 +96,25 @@ corpora convert notes.txt          # format inferred from the extension
 | `-o`, `--output`      | Output `.corpus` path (default: `./<slugified-title>.corpus`).                                                                                                      |
 | `--force`             | Overwrite the output file if it already exists.                                                                                                                     |
 
-Supported formats:
+#### Supported formats
 
-| Format       | Sources                     |
-| ------------ | --------------------------- |
-| `epub`       | `.epub` e-books             |
-| `pdf`        | `.pdf` documents            |
-| `html`       | `.html` / `.htm` pages      |
-| `xml`, `tei` | XML and TEI-encoded texts   |
-| `plain`      | `.txt` plain text           |
-| `tf_zip`     | Zipped Text-Fabric datasets |
-| `tei_zip`    | Zipped TEI collections      |
+- **EPUB**: `.epub` e-books.
+- **PDF**: `.pdf` documents.
+- **HTML**: `.html` / `.htm` pages.
+- **XML**: XML (`*.xml`) and TEI-encoded (`*.tei`) texts.
+- **Plain**: `.txt` plain text.
+- **TF**: Zipped Text-Fabric (`*.tf.zip`) datasets.
+- **TEI**: Zipped TEI (`*.tei.zip`) collections.
 
 <img src="docs/corpora-convert-help.svg" alt="corpora convert --help output" width="760">
 
-### `corpora validate` — integrity checks
+### Validate
+
+Validates the integrity of a `.corpus` file against the text-fabric requirements.
+
+- "Is the archive internally sound?"
+- "Does it faithfully represent the document it was converted from?"
+  [#41](https://github.com/exegia/homebrew-corpora/issues/41)
 
 ```bash
 corpora validate book.corpus
@@ -141,30 +123,33 @@ corpora validate book.corpus
 Runs the corpus integrity checks over a `.corpus` file and prints a verdict
 plus archive stats:
 
-<img src="docs/corpora-validate.svg" alt="corpora validate output" width="760">
+<img src="docs/corpora-validate.svg" alt="corpora validate output">
 
-### `corpora schema` / `corpora reconcile` — source fidelity
+### Schema
 
-`validate` asks "is the archive internally sound?"; these two ask "does it
-faithfully represent the document it was converted from?"
-([#41](https://github.com/exegia/homebrew-corpora/issues/41)). `schema`
-normalises the source document into a reference schema — levels, units,
-labels, and the opening word shingles used for alignment; `reconcile` locates
-those shingles in the archive's Text-Fabric slot stream and reports missing
-units, extra units, boundary drift, length/label mismatches and reordering
-(`RC001`–`RC008`), with optional append-only `.tf` patches for missing
-structure.
+- Parses the schema of a document and outputs it as a JSON schema.
+- Normalises the source document into a reference schema — levels, units,
+  labels, and the opening word shingles used for alignment;
 
-```bash
-corpora schema book.epub -o book.schema.json
+```zsh
+corpora schema book.corpus
+```
+
+### Reconcile
+
+```zsh
 corpora reconcile book.corpus --schema book.schema.json --yes
 ```
 
-The two sides name their structural levels differently (a Markdown or
-OCR'd-PDF reference yields `h1`/`h2`; the corpus declares its own
-`@sectionTypes`), so reconciliation bridges them first and compares **every
-mapped level pairwise** — a missing or drifted *part* is reported, not just
-chapter-level trouble:
+- Locates those shingles in the archive's Text-Fabric slot stream and reports missing
+  units, extra units, boundary drift, length/label mismatches and reordering
+  (`RC001`–`RC008`), with optional append-only `.tf` patches for missing
+  structure.
+- The two sides name their structural levels differently (a Markdown or
+  OCR'd-PDF reference yields `h1`/`h2`).
+- Declares its own `@sectionTypes`, so reconciliation bridges them first and
+  compares **every mapped level pairwise** — a missing or drifted _part_ is
+  reported, not just chapter-level trouble.
 
 ```bash
 # explicit mapping, reference side on the left
@@ -178,16 +163,11 @@ corpora reconcile book.corpus --schema book.schema.json \
 
 With no `--map`, the mapping is inferred from depth alignment, unit counts
 and anchor concordance, printed with its evidence, and must be confirmed —
-pass `--yes` in scripts and CI. A typo on either side of `--map` fails with
-the valid options listed; levels left unmapped on either side are reported
-rather than silently skipped. `--report`, `--json` and `--patch-dir` write
-the Markdown report, the machine-readable result, and reviewable append-only
-patches. Exit codes follow the house rule: `0` clean, `1` discrepancies
-found, `2` a bad or unconfirmed mapping.
+pass `--yes` in scripts and CI.
 
-### `corpora library` — manage stored archives
+### Library
 
-Manages archives on the configured storage backend:
+Manages stored archives on the configured storage backend:
 
 ```bash
 corpora library list                      # list stored archives
@@ -195,38 +175,18 @@ corpora library show book.corpus          # print manifest + section tree
 corpora library show book.corpus --ref 1  # print the passages under a section
 ```
 
-`publish`, `download` and `delete` write to shared storage on a person's
-behalf, so they are hidden and locked until the CLI can sign in — see
-[#28](https://github.com/exegia/homebrew-corpora/issues/28).
-
-<img src="docs/corpora-library-list.svg" alt="corpora library list output" width="760">
-
-`show` prints the archive's manifest, its section tree, and — with `--ref` —
-the passages under a section:
-
-<img src="docs/corpora-library-show.svg" alt="corpora library show output" width="760">
-
-### `corpora-api` — HTTP API + MCP over HTTP
+<img src="docs/corpora-library-list.svg" alt="corpora library list output">
 
 ```bash
-corpora-api   # serves http://127.0.0.1:8000
+corpora library show book.corpus --ref 1  # print the passages under a section
 ```
 
-Boots the combined FastAPI app: the conversion API at `/convert` and the MCP
-server mounted at `/mcp`.
+`show` prints the archive's manifest, its section tree, and — with `--ref` —
+the passages under a section.
 
-## Releases
+<img src="docs/corpora-library-show.svg" alt="corpora library show output">
 
-The Homebrew formula tracks this repo's release tags. On each release,
-[`bump.yml`](.github/workflows/bump.yml) rewrites `Formula/cli.rb`'s
-url/version/sha256 from the tag tarball and commits to `main` — the bump
-commit _is_ the release of the formula. Manual bumps: _Actions → Bump formula
-→ Run workflow_ with the version.
-
-corpora-py releases don't touch the formula: pip resolves the newest
-compatible corpora-py from PyPI at install time.
-
-## Thanks to
+## Credits
 
 - **[Cody Kingham](https://github.com/Context-Fabric/context-fabric)** — for
   [Context Fabric](https://github.com/Context-Fabric/context-fabric), the engine
@@ -237,4 +197,4 @@ compatible corpora-py from PyPI at install time.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](/LICENSE)
