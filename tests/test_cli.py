@@ -142,6 +142,29 @@ class TestValidate:
             cli.main(["validate", str(tmp_path / "nope.corpus")])
         assert "not found" in _usage_error(excinfo, capsys)
 
+    def test_repeated_validation_does_not_leak_file_descriptors(self, tmp_path, capsys):
+        """Context-Fabric mmap handles must be released at the CLI boundary."""
+        fd_dir = Path("/dev/fd")
+        if not fd_dir.is_dir():
+            pytest.skip("this platform does not expose /dev/fd")
+
+        source = _write_sample(tmp_path / "sample.txt")
+        archive = tmp_path / "sample.corpus"
+        assert cli.main(["convert", str(source), "-o", str(archive)]) == 0
+        capsys.readouterr()
+
+        def open_fd_count() -> int:
+            return sum(1 for _ in fd_dir.iterdir())
+
+        baseline = open_fd_count()
+        for _ in range(4):
+            assert cli.main(["validate", str(archive)]) == 0
+            capsys.readouterr()
+
+        # Keep a small allowance for test-runner/platform descriptors while
+        # detecting the ~42 descriptors retained by each leaked CF load.
+        assert open_fd_count() <= baseline + 2
+
 
 class TestFormatInference:
     @pytest.mark.parametrize(
